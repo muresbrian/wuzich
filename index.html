@@ -1,0 +1,605 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wuzi Ops | Enterprise Dashboard</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SheetJS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        
+        /* Transitions */
+        .trans-all { transition: all 0.2s ease-in-out; }
+        
+        /* Card Hover Effect */
+        .card-hover:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); }
+
+        /* Sidebar Active State */
+        .nav-item.active { background: rgba(255,255,255,0.1); color: white; border-left: 3px solid #f97316; }
+        .nav-item { color: #94a3b8; border-left: 3px solid transparent; }
+        .nav-item:hover { color: white; background: rgba(255,255,255,0.05); }
+    </style>
+</head>
+<body class="flex h-screen overflow-hidden text-slate-800">
+
+    <!-- SIDEBAR (Dark Fintech Style) -->
+    <aside class="w-64 bg-slate-900 flex flex-col shadow-2xl z-30 flex-shrink-0">
+        
+        <!-- Logo -->
+        <div class="h-16 flex items-center px-6 border-b border-slate-800">
+            <div class="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-orange-500/20 mr-3">W</div>
+            <div>
+                <h1 class="text-white font-bold text-lg tracking-tight">Wuzi Ops</h1>
+                <p class="text-[10px] text-slate-400 uppercase tracking-widest font-medium">Enterprise</p>
+            </div>
+        </div>
+
+        <!-- Navegación -->
+        <nav class="flex-1 py-6 px-3 space-y-1 overflow-y-auto">
+            <button onclick="switchView('dashboard')" id="navDash" class="nav-item active w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-r-lg transition-colors">
+                <i class="fa-solid fa-chart-pie w-5 text-center"></i> Dashboard
+            </button>
+            <button onclick="switchView('inventory')" id="navInv" class="nav-item w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-r-lg transition-colors">
+                <i class="fa-solid fa-list w-5 text-center"></i> Inventario
+            </button>
+            
+            <div class="pt-4 pb-2 px-4">
+                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Filtros Rápidos</p>
+            </div>
+
+            <!-- Filtros en Sidebar (Dark Mode) -->
+            <div class="space-y-3 px-2">
+                <div class="relative group">
+                    <i class="fa-solid fa-briefcase absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs group-hover:text-slate-300"></i>
+                    <select id="filterHolder" onchange="updateCascadingFilters()" class="w-full pl-9 pr-2 py-2 bg-slate-800 text-slate-300 text-xs rounded border border-slate-700 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none cursor-pointer appearance-none">
+                        <option value="">Razón Social</option>
+                    </select>
+                </div>
+                <div class="relative group">
+                    <i class="fa-solid fa-store absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs group-hover:text-slate-300"></i>
+                    <select id="filterLocation" onchange="updateCascadingFilters()" class="w-full pl-9 pr-2 py-2 bg-slate-800 text-slate-300 text-xs rounded border border-slate-700 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none cursor-pointer appearance-none disabled:opacity-50" disabled>
+                        <option value="">Comercio</option>
+                    </select>
+                </div>
+                <div class="relative group">
+                    <i class="fa-solid fa-user absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs group-hover:text-slate-300"></i>
+                    <select id="filterUser" onchange="applyFilters()" class="w-full pl-9 pr-2 py-2 bg-slate-800 text-slate-300 text-xs rounded border border-slate-700 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none cursor-pointer appearance-none disabled:opacity-50" disabled>
+                        <option value="">Usuario</option>
+                    </select>
+                </div>
+                 <button onclick="resetFilters()" class="w-full py-2 text-xs text-slate-400 hover:text-white hover:bg-slate-800 rounded transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-rotate-left"></i> Restablecer Filtros
+                </button>
+            </div>
+        </nav>
+
+        <!-- Admin Footer -->
+        <div class="p-4 bg-slate-950 border-t border-slate-800">
+            <!-- Admin Toggle -->
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-[10px] text-slate-500 font-mono">DB: <span id="dbCountSidebar" class="text-slate-300">0</span></span>
+                <button onclick="toggleAdminMode()" class="text-slate-600 hover:text-orange-500 transition" title="Admin Access">
+                    <i class="fa-solid fa-lock text-xs" id="adminLockIcon"></i>
+                </button>
+            </div>
+            
+            <!-- Upload Zone (Hidden by default) -->
+            <div id="adminZone" class="hidden animate-fade-in">
+                <label class="block relative cursor-pointer group">
+                    <input type="file" id="fileInput" accept=".xlsx, .xls, .csv" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onchange="handleFileSelect(this)">
+                    <div class="border border-dashed border-slate-600 rounded-lg p-3 text-center group-hover:border-orange-500 group-hover:bg-slate-800 transition">
+                        <i class="fa-solid fa-cloud-arrow-up text-slate-400 group-hover:text-orange-400 mb-1"></i>
+                        <p class="text-[10px] text-slate-300 font-medium">Cargar Excel</p>
+                    </div>
+                </label>
+            </div>
+        </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="flex-1 flex flex-col overflow-hidden bg-gray-50">
+        
+        <!-- TOP BAR -->
+        <header class="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-8 shadow-sm z-20">
+            
+            <!-- Buscador Global -->
+            <div class="flex-1 max-w-2xl relative">
+                <i class="fa-solid fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                <input type="text" id="searchInput" onkeyup="applyFilters()" 
+                    placeholder="Buscar por Serial, Chip, IMEI o Email..." 
+                    class="w-full pl-11 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-full text-sm focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all">
+                <button onclick="clearSearch()" id="clearSearchBtn" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 hidden">
+                    <i class="fa-solid fa-circle-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex items-center gap-4 ml-6">
+                <div class="text-right hidden md:block">
+                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Resultados</p>
+                    <p class="text-lg font-bold text-slate-800 leading-none" id="filteredCount">0</p>
+                </div>
+                <div class="h-8 w-px bg-gray-200"></div>
+                <button onclick="exportData()" class="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-slate-600 text-xs font-bold rounded-lg hover:border-green-500 hover:text-green-600 shadow-sm transition-all">
+                    <i class="fa-solid fa-file-excel text-sm"></i> Exportar
+                </button>
+            </div>
+        </header>
+
+        <!-- CONTENT AREA -->
+        <div class="flex-1 overflow-hidden relative">
+            
+            <!-- VISTA 1: DASHBOARD -->
+            <div id="viewDashboard" class="absolute inset-0 overflow-y-auto p-8">
+                
+                <!-- Empty State -->
+                <div id="dashboardEmpty" class="hidden h-full flex flex-col items-center justify-center text-gray-400">
+                    <div class="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-6">
+                        <i class="fa-solid fa-folder-open text-4xl text-gray-300"></i>
+                    </div>
+                    <h2 class="text-xl font-bold text-gray-600 mb-2">Sin Datos</h2>
+                    <p class="text-sm mb-6">Usa el candado en la barra lateral (Clave: 1234) para cargar tu inventario.</p>
+                </div>
+
+                <div id="dashboardContent" class="hidden space-y-8 pb-20">
+                    <!-- KPIs -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 card-hover relative overflow-hidden">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <p class="text-xs font-bold text-gray-400 uppercase mb-1">Total TPVs Activas</p>
+                                    <h3 class="text-4xl font-bold text-slate-800 tracking-tight" id="kpiTotal">0</h3>
+                                </div>
+                                <div class="p-3 bg-blue-50 text-blue-600 rounded-lg"><i class="fa-solid fa-layer-group text-xl"></i></div>
+                            </div>
+                            <div class="mt-4 w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
+                                <div class="bg-blue-500 h-full rounded-full" style="width: 100%"></div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 card-hover relative overflow-hidden group cursor-pointer" onclick="setProgramFilter('Closed Loop')">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <p class="text-xs font-bold text-gray-400 uppercase mb-1 group-hover:text-purple-500 transition">Closed Loop</p>
+                                    <h3 class="text-4xl font-bold text-slate-800" id="kpiClosed">0</h3>
+                                </div>
+                                <div class="p-3 bg-purple-50 text-purple-600 rounded-lg"><i class="fa-solid fa-lock text-xl"></i></div>
+                            </div>
+                            <div class="mt-4 w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
+                                <div id="barClosed" class="bg-purple-500 h-full rounded-full transition-all duration-1000" style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 card-hover relative overflow-hidden group cursor-pointer" onclick="setProgramFilter('Open Loop')">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <p class="text-xs font-bold text-gray-400 uppercase mb-1 group-hover:text-orange-500 transition">Open Loop</p>
+                                    <h3 class="text-4xl font-bold text-slate-800" id="kpiOpen">0</h3>
+                                </div>
+                                <div class="p-3 bg-orange-50 text-orange-600 rounded-lg"><i class="fa-solid fa-globe text-xl"></i></div>
+                            </div>
+                            <div class="mt-4 w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
+                                <div id="barOpen" class="bg-orange-500 h-full rounded-full transition-all duration-1000" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Charts Section -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 h-96">
+                        <!-- Chart 1 -->
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col lg:col-span-1">
+                            <h4 class="text-sm font-bold text-slate-700 mb-6">Distribución de Flota</h4>
+                            <div class="flex-1 relative"><canvas id="chartPrograms"></canvas></div>
+                        </div>
+                        <!-- Chart 2 -->
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col lg:col-span-2">
+                            <h4 class="text-sm font-bold text-slate-700 mb-6">Top 5 Comercios (Volumen)</h4>
+                            <div class="flex-1 relative"><canvas id="chartLocations"></canvas></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VISTA 2: INVENTARIO (TABLA) -->
+            <div id="viewInventory" class="absolute inset-0 overflow-hidden hidden flex-col p-6">
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col h-full overflow-hidden">
+                    <!-- Table Header -->
+                    <div class="h-12 bg-gray-50 border-b border-gray-200 flex items-center px-6 flex-shrink-0">
+                        <div class="grid grid-cols-12 w-full text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                            <div class="col-span-1">#</div>
+                            <div class="col-span-2">SN (Serie)</div>
+                            <div class="col-span-2">Chip ID</div>
+                            <div class="col-span-2">IMEI</div>
+                            <div class="col-span-2">Comercio</div>
+                            <div class="col-span-2">Usuario</div>
+                            <div class="col-span-1 text-center">Status</div>
+                        </div>
+                    </div>
+                    <!-- Table Body -->
+                    <div class="flex-1 overflow-y-auto" id="tableContainer">
+                        <div id="tableBody" class="divide-y divide-gray-100 text-sm text-slate-600"></div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- MODAL DETALLE (Fintech Style) -->
+    <div id="detailModal" class="fixed inset-0 bg-slate-900/50 hidden items-center justify-center z-50 p-4 backdrop-blur-sm transition-opacity opacity-0" onclick="if(event.target === this) closeModal()">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden transform scale-95 transition-all duration-300" id="modalContent">
+            
+            <!-- Modal Header -->
+            <div class="bg-white border-b border-gray-100 p-6 flex justify-between items-center">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-2xl text-blue-600"><i class="fa-solid fa-microchip"></i></div>
+                    <div>
+                        <h3 class="font-bold text-xl text-slate-800">Ficha Técnica</h3>
+                        <div class="flex items-center gap-2 mt-1">
+                            <span class="px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded border border-green-200">ACTIVO</span>
+                            <span class="text-xs text-gray-400 font-mono" id="modalId">ID: --</span>
+                        </div>
+                    </div>
+                </div>
+                <button onclick="closeModal()" class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 transition"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="p-8 grid grid-cols-2 gap-12">
+                <div class="space-y-6">
+                    <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 pb-2">Hardware</h4>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Número de Serie</label>
+                            <div class="flex items-center gap-2 group cursor-pointer" onclick="copyText('modalSN')">
+                                <span class="font-mono text-lg font-bold text-slate-800" id="modalSN">--</span>
+                                <i class="fa-regular fa-copy text-gray-300 group-hover:text-blue-500 text-xs transition"></i>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Chip ICCID</label>
+                            <span class="font-mono text-sm text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-100 select-all" id="modalChip">--</span>
+                        </div>
+                        <div class="grid grid-cols-1 gap-2">
+                            <div><label class="text-[10px] text-gray-400 uppercase">IMEI 1</label> <div class="font-mono text-sm text-gray-600 select-all" id="modalImei1">--</div></div>
+                            <div><label class="text-[10px] text-gray-400 uppercase">IMEI 2</label> <div class="font-mono text-sm text-gray-600 select-all" id="modalImei2">--</div></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-6">
+                    <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 pb-2">Asignación</h4>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Razón Social</label>
+                            <div class="flex items-center gap-2">
+                                <i class="fa-solid fa-building text-gray-300 text-xs"></i>
+                                <span class="text-sm font-bold text-slate-800" id="modalHolder">--</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Comercio</label>
+                            <div class="flex items-center gap-2">
+                                <i class="fa-solid fa-store text-gray-300 text-xs"></i>
+                                <span class="text-sm font-medium text-slate-700" id="modalLocation">--</span>
+                            </div>
+                        </div>
+                        <div class="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                            <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Responsable</label>
+                            <div class="flex items-center gap-2">
+                                <div class="w-5 h-5 bg-white rounded-full flex items-center justify-center text-xs text-blue-500 border border-gray-200"><i class="fa-solid fa-user"></i></div>
+                                <span class="text-sm font-bold text-blue-600 truncate" id="modalUser">--</span>
+                            </div>
+                        </div>
+                        <div>
+                            <span id="modalProgramBadge" class="inline-block px-3 py-1 rounded-full text-[10px] font-bold bg-gray-100 text-gray-500">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOGIC -->
+    <script>
+        // --- GLOBALS ---
+        let GLOBAL_DATA = [];
+        let FILTERED_DATA = [];
+        let charts = {};
+
+        // --- UTILS ---
+        const clean = (s) => String(s||'').replace(/[^a-zA-Z0-9@._-]/g, '').toLowerCase();
+        const cleanDisplay = (s) => String(s||'').trim();
+
+        // --- INIT ---
+        window.onload = function() {
+            const stored = localStorage.getItem('wuzi_fintech_v21');
+            if(stored) GLOBAL_DATA = JSON.parse(stored);
+            else GLOBAL_DATA = []; // Start Empty
+            
+            refreshApp();
+            switchView('dashboard');
+        };
+
+        function saveData() { localStorage.setItem('wuzi_fintech_v21', JSON.stringify(GLOBAL_DATA)); }
+
+        // --- EXCEL LOGIC ---
+        function handleFileUpload(input) {
+            const file = input.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1, defval: '' });
+                    processRows(json);
+                    input.value = ''; // Reset
+                } catch(err) { alert("Error: " + err); }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function processRows(rows) {
+            if(!rows || rows.length < 2) return alert("Archivo vacío.");
+            
+            let hIdx = -1;
+            // Smart Header Detection
+            for(let i=0; i<Math.min(rows.length, 20); i++) {
+                const r = rows[i].map(x=>String(x).toLowerCase()).join(' ');
+                if(r.includes('sn') || r.includes('serie')) { hIdx=i; break; }
+            }
+            if(hIdx===-1) return alert("No encontré columna 'SN'.");
+
+            const headers = rows[hIdx].map(h=>String(h).toLowerCase());
+            const idx = (k) => headers.findIndex(x=>k.some(v=>x.includes(v)));
+            const map = {
+                sn: idx(['sn','serie']), chip: idx(['chip','sim']), imei1: idx(['imei','imei 1']), imei2: idx(['imei2']),
+                loc: idx(['sucursal','comercio']), holder: idx(['razon','holder']), user: idx(['usuario','user']), prog: idx(['prog','loop'])
+            };
+
+            let lastLoc='', lastH='', lastU='', lastP='Closed Loop';
+            const newData = [];
+
+            for(let i=hIdx+1; i<rows.length; i++) {
+                const r = rows[i];
+                let snRaw = cleanDisplay(r[map.sn]);
+                if(!snRaw || snRaw.length < 4) continue;
+
+                if(map.loc>-1 && r[map.loc]) lastLoc=cleanDisplay(r[map.loc]);
+                if(map.holder>-1 && r[map.holder]) lastH=cleanDisplay(r[map.holder]);
+                if(map.user>-1 && r[map.user]) lastU=cleanDisplay(r[map.user]);
+                if(map.prog>-1 && r[map.prog]) lastP=cleanDisplay(r[map.prog]);
+                else if(lastH.toLowerCase().includes('chedraui')) lastP='Closed Loop';
+
+                newData.push({
+                    id: i, sn: snRaw, sn_clean: clean(snRaw),
+                    chip: cleanDisplay(r[map.chip]), chip_clean: clean(r[map.chip]),
+                    imei1: cleanDisplay(r[map.imei1]), imei1_clean: clean(r[map.imei1]),
+                    imei2: cleanDisplay(r[map.imei2]),
+                    location: lastLoc||'N/A', holder: lastH||'General', user: lastU||'N/A',
+                    program: lastP, model: 'UROVO I900', status: 'Activo'
+                });
+            }
+
+            GLOBAL_DATA = newData;
+            saveData();
+            refreshApp();
+            alert(`Carga completada: ${newData.length} activos.`);
+            closeAdminMode();
+        }
+
+        // --- FILTER LOGIC ---
+        function applyFilters() {
+            const search = clean(document.getElementById('searchInput').value);
+            const holder = document.getElementById('filterHolder').value;
+            const loc = document.getElementById('filterLocation').value;
+            const user = document.getElementById('filterUser').value;
+
+            document.getElementById('clearSearchBtn').style.display = search ? 'block' : 'none';
+
+            FILTERED_DATA = GLOBAL_DATA.filter(i => {
+                const mSearch = !search || i.sn_clean.includes(search) || i.chip_clean.includes(search) || i.imei1_clean.includes(search);
+                const isExact = search && (i.sn_clean===search || i.chip_clean===search);
+                
+                const mFilter = isExact ? true : ((!holder||i.holder===holder) && (!loc||i.location===loc) && (!user||i.user===user));
+                return mSearch && mFilter;
+            });
+
+            if(search.length>3) switchView('inventory');
+            if(FILTERED_DATA.length===1 && search.length>5) openModal(FILTERED_DATA[0]);
+
+            updateUI();
+        }
+
+        function updateUI() {
+            const data = FILTERED_DATA.length || (document.getElementById('searchInput').value ? 0 : GLOBAL_DATA.length) ? FILTERED_DATA : GLOBAL_DATA;
+            const total = data.length;
+            const closed = data.filter(i=>i.program==='Closed Loop').length;
+            const open = data.filter(i=>i.program==='Open Loop').length;
+
+            // Toggle Empty
+            const isEmpty = GLOBAL_DATA.length === 0;
+            document.getElementById('dashboardContent').classList.toggle('hidden', isEmpty);
+            document.getElementById('dashboardEmpty').classList.toggle('hidden', !isEmpty);
+
+            // KPIs
+            document.getElementById('kpiTotal').innerText = total;
+            document.getElementById('kpiClosed').innerText = closed;
+            document.getElementById('kpiOpen').innerText = open;
+            document.getElementById('filteredCount').innerText = total;
+            document.getElementById('dbCountSidebar').innerText = GLOBAL_DATA.length;
+            document.getElementById('dbCount').innerText = GLOBAL_DATA.length;
+
+            // Charts & Table
+            if(!isEmpty) {
+                renderTable(data);
+                updateCharts(data, closed, open);
+                
+                // Filters Init (Only once)
+                if(document.getElementById('filterHolder').options.length <= 1) {
+                    const h = [...new Set(GLOBAL_DATA.map(d=>d.holder))].sort();
+                    updateDropdown('filterHolder', h);
+                }
+            }
+        }
+
+        function renderTable(data) {
+            const tbody = document.getElementById('tableBody');
+            if(!tbody) return; // Guard clause
+            tbody.innerHTML = '';
+            data.slice(0, 100).forEach((item, i) => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-blue-50/50 cursor-pointer transition border-b border-gray-100 last:border-0 group";
+                tr.onclick = () => openModal(item);
+                tr.innerHTML = `
+                    <td class="p-4 text-gray-400 font-mono text-xs">${i+1}</td>
+                    <td class="p-4 font-mono text-sm font-bold text-slate-700 group-hover:text-blue-600 transition">${item.sn}</td>
+                    <td class="p-4 font-mono text-xs text-slate-500">${item.chip}</td>
+                    <td class="p-4 font-mono text-xs text-slate-400">${item.imei1}</td>
+                    <td class="p-4 text-sm text-slate-700 truncate max-w-[150px]">${item.location}</td>
+                    <td class="p-4 text-xs text-blue-600 truncate max-w-[150px] font-medium">${item.user}</td>
+                    <td class="p-4 text-center"><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">ACTIVO</span></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // --- UI HELPERS ---
+        function switchView(v) {
+            document.getElementById('viewDashboard').style.display = v==='dashboard'?'block':'none';
+            document.getElementById('viewInventory').style.display = v==='inventory'?'flex':'none';
+            
+            const activeClass = "nav-item active w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-r-lg transition-colors bg-white/5 text-white border-l-4 border-orange-500";
+            const inactiveClass = "nav-item w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-r-lg transition-colors text-slate-400 hover:text-white hover:bg-white/5 border-l-4 border-transparent";
+
+            document.getElementById('navDash').className = v==='dashboard' ? activeClass : inactiveClass;
+            document.getElementById('navInv').className = v==='inventory' ? activeClass : inactiveClass;
+        }
+
+        function toggleAdminMode() {
+            const z = document.getElementById('adminZone');
+            if(z.classList.contains('hidden')) {
+                if(prompt("PIN (1234):")==='1234') {
+                    z.classList.remove('hidden');
+                    document.getElementById('adminLockIcon').className="fa-solid fa-lock-open text-orange-500";
+                }
+            } else closeAdminMode();
+        }
+        function closeAdminMode() {
+            document.getElementById('adminZone').classList.add('hidden');
+            document.getElementById('adminLockIcon').className="fa-solid fa-lock";
+        }
+
+        function updateCascadingFilters() {
+            const holder = document.getElementById('filterHolder').value;
+            const subset = holder ? GLOBAL_DATA.filter(i => i.holder === holder) : GLOBAL_DATA;
+            const locs = [...new Set(subset.map(i => i.location))].sort();
+            updateDropdown('filterLocation', locs);
+            document.getElementById('filterLocation').disabled = !holder;
+            
+            const loc = document.getElementById('filterLocation').value;
+            const subset2 = loc ? subset.filter(i => i.location === loc) : subset;
+            const users = [...new Set(subset2.map(i => i.user))].sort();
+            updateDropdown('filterUser', users);
+            document.getElementById('filterUser').disabled = !loc;
+
+            applyFilters();
+        }
+        function updateDropdown(id, list) {
+            const el = document.getElementById(id);
+            el.innerHTML = `<option value="">${id.includes('Loc')?'Todos los Comercios':id.includes('User')?'Todos los Usuarios':'Todas'}</option>`;
+            list.forEach(v => el.innerHTML += `<option value="${v}">${v}</option>`);
+        }
+        function resetFilters() {
+            document.getElementById('searchInput').value = '';
+            document.getElementById('filterHolder').value = '';
+            updateCascadingFilters();
+            switchView('dashboard');
+        }
+        function clearSearch() { document.getElementById('searchInput').value = ''; applyFilters(); switchView('dashboard'); }
+        
+        function setProgramFilter(prog) {
+            // Quick filter from cards
+            // This requires logic to filter by program. Simplified here for demo:
+            alert("Filtrando por: " + prog + " (Función completa en V22)");
+        }
+
+        function openModal(item) {
+            document.getElementById('modalId').innerText = `ID: ${item.id}`;
+            document.getElementById('modalSN').innerText = item.sn;
+            document.getElementById('modalChip').innerText = item.chip;
+            document.getElementById('modalImei1').innerText = item.imei1;
+            document.getElementById('modalImei2').innerText = item.imei2;
+            document.getElementById('modalHolder').innerText = item.holder;
+            document.getElementById('modalLocation').innerText = item.location;
+            document.getElementById('modalUser').innerText = item.user;
+            
+            const bg = item.program.includes('Closed') ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700';
+            document.getElementById('modalBadge').className = `inline-block px-3 py-1 rounded-full text-[10px] font-bold ${bg}`;
+            document.getElementById('modalBadge').innerText = item.program;
+
+            const m = document.getElementById('detailModal');
+            m.classList.remove('hidden'); m.classList.add('flex');
+            setTimeout(() => document.getElementById('modalContent').classList.replace('scale-95', 'scale-100'), 10);
+        }
+        function closeModal() {
+            document.getElementById('modalContent').classList.replace('scale-100', 'scale-95');
+            setTimeout(() => { document.getElementById('detailModal').classList.add('hidden'); document.getElementById('detailModal').classList.remove('flex'); }, 200);
+        }
+        function copyText(id) { navigator.clipboard.writeText(document.getElementById(id).innerText); }
+        
+        function exportData() {
+            const data = FILTERED_DATA.length ? FILTERED_DATA : GLOBAL_DATA;
+            if(!data.length) return;
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Wuzi_Export");
+            XLSX.writeFile(wb, "Wuzi_Inventory.xlsx");
+        }
+
+        // Charts
+        function updateCharts(data, closed, open) {
+            if(charts.prog) charts.prog.destroy();
+            charts.prog = new Chart(document.getElementById('chartPrograms'), {
+                type: 'doughnut',
+                data: { labels: ['Closed', 'Open'], datasets: [{ data: [closed, open], backgroundColor: ['#a855f7', '#f97316'], borderWidth: 0 }] },
+                options: { responsive:true, maintainAspectRatio:false, cutout:'75%', plugins:{legend:{position:'right', labels:{usePointStyle:true, boxWidth:8}}} }
+            });
+            
+            const locs = {}; data.forEach(i => locs[i.location] = (locs[i.location]||0)+1);
+            const s = Object.entries(locs).sort((a,b) => b[1]-a[1]).slice(0,5);
+            if(charts.loc) charts.loc.destroy();
+            charts.loc = new Chart(document.getElementById('chartLocations'), {
+                type: 'bar',
+                data: { labels: s.map(x=>x[0]), datasets: [{ label:'TPVs', data:s.map(x=>x[1]), backgroundColor:'#3b82f6', borderRadius:6 }] },
+                options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true, grid:{display:false}}, x:{grid:{display:false}}} }
+            });
+        }
+
+        // Global Refresh
+        function refreshApp() { 
+            FILTERED_DATA = GLOBAL_DATA; // Reset filter
+            updateUI(GLOBAL_DATA); 
+        }
+    </script>
+</body>
+</html>
